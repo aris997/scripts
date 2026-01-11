@@ -43,7 +43,7 @@ usermod -aG docker $NEW_USER
 sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)"
 chsh -s /usr/bin/zsh $NEW_USER
 wget https://raw.githubusercontent.com/aris997/dotfiles/refs/heads/main/zsh/themes/rivar.zsh-theme
-mv {,/home/$NEW_USER/oh-my-zsh/custom/}rivar.zsh-theme
+mv {,/home/$NEW_USER/.oh-my-zsh/custom/}rivar.zsh-theme
 wget https://raw.githubusercontent.com/aris997/dotfiles/refs/heads/main/zsh/.zshrc
 if [[ -n /home/$NEW_USER/.oh-my-zsh/custom/secrets.zsh ]]; then
     mkdir -p /home/$NEW_USER/.oh-my-zsh/custom
