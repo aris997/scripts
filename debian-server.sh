@@ -9,7 +9,7 @@ set -eu
 
 # Basics
 apt update && apt upgrade -y
-apt install -y nginx snapd htop vim zsh ca-certificates curl
+apt install -y nginx git snapd htop vim zsh ca-certificates curl
 
 # Create user admin
 adduser $NEW_USER
@@ -34,13 +34,13 @@ Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
+apt update
 apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 groupadd docker
 usermod -aG docker $NEW_USER
 
 # Oh My Zsh
-wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O install-zsh.sh
-sh -c install-zsh.sh
+sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)"
 chsh -s /usr/bin/zsh $NEW_USER
 wget https://raw.githubusercontent.com/aris997/dotfiles/refs/heads/main/zsh/themes/rivar.zsh-theme
 mv {,/home/$NEW_USER/oh-my-zsh/custom/}rivar.zsh-theme
