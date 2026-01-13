@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck debian-server.sh
+
+      - name: Build Debian 13 test image
+        run: |
+          docker build \
+            --build-arg SKIP_SNAP=1 \
+            --build-arg NEW_USER=agent-test \
+            -t ignition-scripts:test .
+
+      - name: Verify user creation
+        run: docker run --rm ignition-scripts:test getent passwd agent-test
