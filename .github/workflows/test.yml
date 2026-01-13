@@ -21,6 +21,7 @@ jobs:
         run: |
           docker build \
             --build-arg SKIP_SNAP=1 \
+            --build-arg SKIP_DOCKER=1 \
             --build-arg NEW_USER=agent-test \
             -t ignition-scripts:test .
 
