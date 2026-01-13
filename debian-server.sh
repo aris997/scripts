@@ -1,28 +1,42 @@
 #! /bin/bash
 
-NEW_USER=admin
-
-# Error handling
-# -e: raise error as soon as a command returns 1
-# -u: raise error if a variable is unset while fulfilling a string
 set -eu
+
+NEW_USER=${NEW_USER:-admin}
+SKIP_SNAP=${SKIP_SNAP:-0}
 
 # Basics
 apt update && apt upgrade -y
-apt install -y nginx git snapd htop vim zsh ca-certificates curl
+BASE_PACKAGES=(nginx git htop vim zsh ca-certificates curl)
+if [ "$SKIP_SNAP" -eq 0 ]; then
+    BASE_PACKAGES+=(snapd)
+fi
+apt install -y "${BASE_PACKAGES[@]}"
 
-# Create user admin
-adduser $NEW_USER
-usermod -aG sudo $NEW_USER
-mkdir -p /home/$NEW_USER/.ssh
-cat /root/.ssh/authorized_keys > /home/$NEW_USER/.ssh/authorized_keys
+# Create user
+adduser "$NEW_USER"
+usermod -aG sudo "$NEW_USER"
+mkdir -p "/home/$NEW_USER/.ssh"
+cat /root/.ssh/authorized_keys > "/home/$NEW_USER/.ssh/authorized_keys"
 
-# SSL Certifies
-snap install --classic certbot
-ln -s /snap/bin/certbot /usr/bin/certbot
+# SSL Certificates
+if [ "$SKIP_SNAP" -eq 0 ]; then
+    snap install --classic certbot
+    ln -s /snap/bin/certbot /usr/bin/certbot
+else
+    apt install -y certbot
+fi
 
 # Docker
-apt remove $(dpkg --get-selections docker.io docker-compose docker-doc podman-docker containerd runc | cut -f1)
+REMOVE_PKGS=()
+for pkg in docker.io docker-compose docker-doc podman-docker containerd runc; do
+    if dpkg -s "$pkg" >/dev/null 2>&1; then
+        REMOVE_PKGS+=("$pkg")
+    fi
+done
+if [ "${#REMOVE_PKGS[@]}" -gt 0 ]; then
+    apt remove -y "${REMOVE_PKGS[@]}"
+fi
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
 chmod a+r /etc/apt/keyrings/docker.asc
@@ -53,4 +67,3 @@ mv {,/home/$NEW_USER/}.zshrc
 
 echo 'Done.'
 echo 'You have now nginx, docker, snap, certbot.'
-
