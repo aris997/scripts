@@ -69,6 +69,9 @@ EOF
 fi
 
 # Oh My Zsh
+export ZSH="/home/$NEW_USER/.oh-my-zsh"
+export RUNZSH=no
+export CHSH=no
 sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)"
 chsh -s /usr/bin/zsh "$NEW_USER"
 wget https://raw.githubusercontent.com/aris997/dotfiles/refs/heads/main/zsh/themes/rivar.zsh-theme
