@@ -7,7 +7,7 @@
 
 ## Build, Test, and Development Commands
 - Run the installer locally: `bash debian-server.sh` (assumes Debian/Ubuntu with sudo).
-- Remote one-liner (mirrors README): `sh -c "$(wget https://raw.githubusercontent.com/aris997/scripts/refs/heads/main/debian-server.sh -O -)"`.
+- Remote one-liner (mirrors README): `bash -c "$(wget https://raw.githubusercontent.com/aris997/scripts/refs/heads/main/debian-server.sh -O -)"`.
 - Dry-run safety check: `bash -n debian-server.sh` for syntax, `shellcheck debian-server.sh` for linting (install shellcheck first).
 
 ## Coding Style & Naming Conventions
