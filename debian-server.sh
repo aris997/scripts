@@ -74,15 +74,12 @@ export RUNZSH=no
 export CHSH=no
 sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)"
 chsh -s /usr/bin/zsh "$NEW_USER"
-wget https://raw.githubusercontent.com/aris997/dotfiles/refs/heads/main/zsh/themes/rivar.zsh-theme
-mkdir -p "/home/$NEW_USER/.oh-my-zsh/custom"
-mv {,/home/"$NEW_USER"/.oh-my-zsh/custom/}rivar.zsh-theme
-wget https://raw.githubusercontent.com/aris997/dotfiles/refs/heads/main/zsh/.zshrc
+mkdir -p "/home/$NEW_USER/.oh-my-zsh/custom/themes"
+wget -O "/home/$NEW_USER/.oh-my-zsh/custom/themes/rivar.zsh-theme" https://raw.githubusercontent.com/aris997/dotfiles/refs/heads/main/zsh/themes/rivar.zsh-theme
+wget -O "/home/$NEW_USER/.zshrc" https://raw.githubusercontent.com/aris997/dotfiles/refs/heads/main/zsh/.zshrc
 if [ ! -f "/home/$NEW_USER/.oh-my-zsh/custom/secrets.zsh" ]; then
-    mkdir -p "/home/$NEW_USER/.oh-my-zsh/custom"
     echo "# secrets.zsh" > "/home/$NEW_USER/.oh-my-zsh/custom/secrets.zsh"
 fi
-mv {,/home/"$NEW_USER"/}.zshrc
 chown -R "$NEW_USER":"$NEW_USER" "/home/$NEW_USER"
 
 echo 'Done.'
