@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl wget sudo && \
     rm -rf /var/lib/apt/lists/*
 
-COPY debian-server.sh /tmp/debian-server.sh
+COPY debian-docker.sh /tmp/debian-docker.sh
 
-RUN bash -n /tmp/debian-server.sh
-RUN SKIP_SNAP=1 SKIP_DOCKER=1 bash /tmp/debian-server.sh
+RUN bash -n /tmp/debian-docker.sh
+RUN SKIP_SNAP=1 SKIP_DOCKER=1 bash /tmp/debian-docker.sh
 
 CMD ["bash"]
