@@ -11,11 +11,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Shellcheck
+      - name: Shellcheck Scripts
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
-          shellcheck debian-server.sh
+          shellcheck *.sh
 
       - name: Build Debian 13 test image
         run: |
