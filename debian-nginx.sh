@@ -46,6 +46,7 @@ NEW_USER="${NEW_USER:-admin}"
 NEW_USER_PASSWORD="${NEW_USER_PASSWORD:-}"  # Empty = no password, key-only auth
 SSH_PORT="${SSH_PORT:-22}"                  # Change to a non-standard port if desired
 TIMEZONE="${TIMEZONE:-UTC}"                 # e.g. "Europe/Rome"
+SKIP_SNAP="${SKIP_SNAP:-0}"                # Set to 1 to skip snap/certbot-via-snap
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -116,21 +117,25 @@ section_header "2. INSTALLING ESSENTIAL PACKAGES"
 #   apt-listchanges — Summarizes changelogs during upgrades
 #   chrony         — NTP client for time synchronization (lighter than ntpd)
 #   logrotate      — Manages log file rotation (usually pre-installed)
-apt-get install -y \
-    nginx \
-    rsync \
-    git \
-    htop \
-    vim \
-    ca-certificates \
-    curl \
-    snapd \
-    ufw \
-    fail2ban \
-    unattended-upgrades \
-    apt-listchanges \
-    chrony \
+BASE_PACKAGES=(
+    nginx
+    rsync
+    git
+    htop
+    vim
+    ca-certificates
+    curl
+    ufw
+    fail2ban
+    unattended-upgrades
+    apt-listchanges
+    chrony
     logrotate
+)
+if [ "$SKIP_SNAP" -eq 0 ]; then
+    BASE_PACKAGES+=(snapd)
+fi
+apt-get install -y "${BASE_PACKAGES[@]}"
 
 echo "All packages installed."
 
@@ -149,9 +154,13 @@ section_header "3. TIMEZONE & NTP CONFIGURATION"
 # Chrony is preferred over ntpd because it's faster at correcting drift,
 # handles intermittent connectivity better, and uses less memory.
 
-timedatectl set-timezone "$TIMEZONE"
-systemctl enable chrony
-systemctl start chrony
+if command -v timedatectl >/dev/null 2>&1; then
+    timedatectl set-timezone "$TIMEZONE"
+fi
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable chrony
+    systemctl start chrony
+fi
 
 echo "Timezone set to $TIMEZONE. Chrony NTP enabled."
 
@@ -320,34 +329,38 @@ section_header "6. HARDENING SSH"
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
-# Back up the original config so you can diff or restore if needed.
-cp "$SSHD_CONFIG" "${SSHD_CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
+if [ -f "$SSHD_CONFIG" ]; then
+    # Back up the original config so you can diff or restore if needed.
+    cp "$SSHD_CONFIG" "${SSHD_CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
 
-# We use sed to find and replace (or uncomment) each directive.
-# The regex ^#\? matches lines that are either commented out or active.
-sed -i "s/^#\?Port .*/Port $SSH_PORT/" "$SSHD_CONFIG"
-sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
-sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
-sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$SSHD_CONFIG"
-sed -i 's/^#\?X11Forwarding.*/X11Forwarding no/' "$SSHD_CONFIG"
-sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' "$SSHD_CONFIG"
-sed -i 's/^#\?AllowAgentForwarding.*/AllowAgentForwarding no/' "$SSHD_CONFIG"
+    # We use sed to find and replace (or uncomment) each directive.
+    # The regex ^#\? matches lines that are either commented out or active.
+    sed -i "s/^#\?Port .*/Port $SSH_PORT/" "$SSHD_CONFIG"
+    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
+    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
+    sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$SSHD_CONFIG"
+    sed -i 's/^#\?X11Forwarding.*/X11Forwarding no/' "$SSHD_CONFIG"
+    sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' "$SSHD_CONFIG"
+    sed -i 's/^#\?AllowAgentForwarding.*/AllowAgentForwarding no/' "$SSHD_CONFIG"
 
-# AllowUsers might not exist in the default config, so we append it.
-# First remove any existing AllowUsers line, then add ours at the end.
-sed -i '/^AllowUsers/d' "$SSHD_CONFIG"
-echo "AllowUsers $NEW_USER" >> "$SSHD_CONFIG"
+    # AllowUsers might not exist in the default config, so we append it.
+    # First remove any existing AllowUsers line, then add ours at the end.
+    sed -i '/^AllowUsers/d' "$SSHD_CONFIG"
+    echo "AllowUsers $NEW_USER" >> "$SSHD_CONFIG"
 
-# Validate the config before restarting. A syntax error here = you get
-# locked out on next disconnect. sshd -t does a dry-run parse.
-if sshd -t; then
-    systemctl restart sshd
-    echo "SSH hardened and restarted on port $SSH_PORT."
+    # Validate the config before restarting. A syntax error here = you get
+    # locked out on next disconnect. sshd -t does a dry-run parse.
+    if sshd -t; then
+        systemctl restart sshd
+        echo "SSH hardened and restarted on port $SSH_PORT."
+    else
+        echo "ERROR: sshd config validation failed! Restoring backup." >&2
+        cp "${SSHD_CONFIG}.bak."* "$SSHD_CONFIG" 2>/dev/null
+        systemctl restart sshd
+        exit 1
+    fi
 else
-    echo "ERROR: sshd config validation failed! Restoring backup." >&2
-    cp "${SSHD_CONFIG}.bak."* "$SSHD_CONFIG" 2>/dev/null
-    systemctl restart sshd
-    exit 1
+    echo "SSHD config not found, skipping SSH hardening."
 fi
 
 # =============================================================================
@@ -366,23 +379,27 @@ section_header "7. CONFIGURING FIREWALL (UFW)"
 # "default allow outgoing" lets the server make outbound connections (apt updates,
 # DNS lookups, API calls, etc.).
 
-ufw default deny incoming
-ufw default allow outgoing
+if command -v ufw >/dev/null 2>&1; then
+    ufw default deny incoming
+    ufw default allow outgoing
 
-# Allow SSH — CRITICAL: if you forget this, UFW locks you out the moment it
-# enables. We use the variable in case you changed the port above.
-ufw allow "$SSH_PORT/tcp" comment "SSH"
+    # Allow SSH — CRITICAL: if you forget this, UFW locks you out the moment it
+    # enables. We use the variable in case you changed the port above.
+    ufw allow "$SSH_PORT/tcp" comment "SSH"
 
-# Allow HTTP (needed for Let's Encrypt ACME challenges during cert issuance)
-ufw allow 80/tcp comment "HTTP"
+    # Allow HTTP (needed for Let's Encrypt ACME challenges during cert issuance)
+    ufw allow 80/tcp comment "HTTP"
 
-# Allow HTTPS (your actual web traffic)
-ufw allow 443/tcp comment "HTTPS"
+    # Allow HTTPS (your actual web traffic)
+    ufw allow 443/tcp comment "HTTPS"
 
-# --force skips the "are you sure?" interactive prompt.
-ufw --force enable
+    # --force skips the "are you sure?" interactive prompt.
+    ufw --force enable
 
-echo "UFW enabled. Allowed ports: $SSH_PORT (SSH), 80 (HTTP), 443 (HTTPS)."
+    echo "UFW enabled. Allowed ports: $SSH_PORT (SSH), 80 (HTTP), 443 (HTTPS)."
+else
+    echo "UFW not found, skipping firewall configuration."
+fi
 
 # =============================================================================
 # 8. FAIL2BAN (BRUTE-FORCE PROTECTION)
@@ -441,8 +458,10 @@ logpath  = /var/log/nginx/access.log
 maxretry = 2
 EOF
 
-systemctl enable fail2ban
-systemctl restart fail2ban
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable fail2ban
+    systemctl restart fail2ban
+fi
 
 echo "Fail2ban configured and running."
 
@@ -553,8 +572,10 @@ Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 EOF
 
-systemctl enable unattended-upgrades
-systemctl restart unattended-upgrades
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable unattended-upgrades
+    systemctl restart unattended-upgrades
+fi
 
 echo "Automatic security updates configured."
 
@@ -573,13 +594,17 @@ section_header "11. INSTALLING CERTBOT"
 # Without this, "snap install" can fail with "too early for operation, device
 # not yet seeded" on fresh servers.
 
-snap wait system seed.loaded
-snap install --classic certbot
+if [ "$SKIP_SNAP" -eq 0 ]; then
+    snap wait system seed.loaded
+    snap install --classic certbot
 
-# ln -sf: create a symlink so you can type "certbot" instead of "/snap/bin/certbot".
-# The -f (force) flag means it overwrites an existing symlink, making the script
-# safe to run multiple times (idempotent).
-ln -sf /snap/bin/certbot /usr/bin/certbot
+    # ln -sf: create a symlink so you can type "certbot" instead of "/snap/bin/certbot".
+    # The -f (force) flag means it overwrites an existing symlink, making the script
+    # safe to run multiple times (idempotent).
+    ln -sf /snap/bin/certbot /usr/bin/certbot
+else
+    apt-get install -y certbot
+fi
 
 echo "Certbot installed. Run 'certbot --nginx -d yourdomain.com' to get a certificate."
 
