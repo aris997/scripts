@@ -122,11 +122,9 @@ section_header "3. TIMEZONE & NTP CONFIGURATION"
 
 # Accurate time is critical for TLS certificates, cron jobs, and log analysis.
 # Chrony is preferred over ntpd: faster drift correction, less memory.
-if [ -d /run/systemd/system ]; then
-    timedatectl set-timezone "$TIMEZONE"
-    systemctl enable chrony
-    systemctl start chrony
-fi
+timedatectl set-timezone "$TIMEZONE"
+systemctl enable chrony
+systemctl start chrony
 
 echo "Timezone set to $TIMEZONE. Chrony NTP enabled."
 
@@ -211,41 +209,37 @@ section_header "6. HARDENING SSH"
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
-if [ -f "$SSHD_CONFIG" ]; then
-    # Back up the original config.
-    cp "$SSHD_CONFIG" "${SSHD_CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
+# Back up the original config.
+cp "$SSHD_CONFIG" "${SSHD_CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
 
-    # Harden each directive:
-    #   PermitRootLogin no          — Force attackers to guess username + key
-    #   PasswordAuthentication no   — Keys only; stops 99% of brute-force
-    #   KbdInteractiveAuthentication no — Closes the other password auth path
-    #   X11Forwarding no            — No GUI forwarding on a headless server
-    #   MaxAuthTries 3              — Drop connection after 3 failures
-    #   AllowAgentForwarding no     — Prevent agent hijacking if server is compromised
-    sed -i "s/^#\?Port .*/Port $SSH_PORT/" "$SSHD_CONFIG"
-    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
-    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
-    sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$SSHD_CONFIG"
-    sed -i 's/^#\?X11Forwarding.*/X11Forwarding no/' "$SSHD_CONFIG"
-    sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' "$SSHD_CONFIG"
-    sed -i 's/^#\?AllowAgentForwarding.*/AllowAgentForwarding no/' "$SSHD_CONFIG"
+# Harden each directive:
+#   PermitRootLogin no          — Force attackers to guess username + key
+#   PasswordAuthentication no   — Keys only; stops 99% of brute-force
+#   KbdInteractiveAuthentication no — Closes the other password auth path
+#   X11Forwarding no            — No GUI forwarding on a headless server
+#   MaxAuthTries 3              — Drop connection after 3 failures
+#   AllowAgentForwarding no     — Prevent agent hijacking if server is compromised
+sed -i "s/^#\?Port .*/Port $SSH_PORT/" "$SSHD_CONFIG"
+sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
+sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
+sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$SSHD_CONFIG"
+sed -i 's/^#\?X11Forwarding.*/X11Forwarding no/' "$SSHD_CONFIG"
+sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' "$SSHD_CONFIG"
+sed -i 's/^#\?AllowAgentForwarding.*/AllowAgentForwarding no/' "$SSHD_CONFIG"
 
-    # AllowUsers whitelist — ONLY this user can SSH in.
-    sed -i '/^AllowUsers/d' "$SSHD_CONFIG"
-    echo "AllowUsers $NEW_USER" >> "$SSHD_CONFIG"
+# AllowUsers whitelist — ONLY this user can SSH in.
+sed -i '/^AllowUsers/d' "$SSHD_CONFIG"
+echo "AllowUsers $NEW_USER" >> "$SSHD_CONFIG"
 
-    # Validate before restarting. A syntax error here = lockout.
-    if sshd -t; then
-        systemctl restart sshd
-        echo "SSH hardened and restarted on port $SSH_PORT."
-    else
-        echo "ERROR: sshd config validation failed! Restoring backup." >&2
-        cp "${SSHD_CONFIG}.bak."* "$SSHD_CONFIG" 2>/dev/null
-        systemctl restart sshd
-        exit 1
-    fi
+# Validate before restarting. A syntax error here = lockout.
+if sshd -t; then
+    systemctl restart sshd
+    echo "SSH hardened and restarted on port $SSH_PORT."
 else
-    echo "SSHD config not found, skipping SSH hardening."
+    echo "ERROR: sshd config validation failed! Restoring backup." >&2
+    cp "${SSHD_CONFIG}.bak."* "$SSHD_CONFIG" 2>/dev/null
+    systemctl restart sshd
+    exit 1
 fi
 
 # =============================================================================
@@ -253,20 +247,16 @@ fi
 # =============================================================================
 section_header "7. CONFIGURING FIREWALL (UFW)"
 
-if command -v ufw >/dev/null 2>&1; then
-    ufw default deny incoming
-    ufw default allow outgoing
+ufw default deny incoming
+ufw default allow outgoing
 
-    ufw allow "$SSH_PORT/tcp" comment "SSH"
-    ufw allow 80/tcp comment "HTTP"
-    ufw allow 443/tcp comment "HTTPS"
+ufw allow "$SSH_PORT/tcp" comment "SSH"
+ufw allow 80/tcp comment "HTTP"
+ufw allow 443/tcp comment "HTTPS"
 
-    ufw --force enable
+ufw --force enable
 
-    echo "UFW enabled. Allowed ports: $SSH_PORT (SSH), 80 (HTTP), 443 (HTTPS)."
-else
-    echo "UFW not found, skipping firewall configuration."
-fi
+echo "UFW enabled. Allowed ports: $SSH_PORT (SSH), 80 (HTTP), 443 (HTTPS)."
 
 # =============================================================================
 # 8. FAIL2BAN (BRUTE-FORCE PROTECTION)
@@ -299,10 +289,8 @@ logpath  = /var/log/nginx/access.log
 maxretry = 2
 EOF
 
-if [ -d /run/systemd/system ]; then
-    systemctl enable fail2ban
-    systemctl restart fail2ban
-fi
+systemctl enable fail2ban
+systemctl restart fail2ban
 
 echo "Fail2ban configured and running."
 
@@ -367,10 +355,8 @@ Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 EOF
 
-if [ -d /run/systemd/system ]; then
-    systemctl enable unattended-upgrades
-    systemctl restart unattended-upgrades
-fi
+systemctl enable unattended-upgrades
+systemctl restart unattended-upgrades
 
 echo "Automatic security updates configured."
 

@@ -154,11 +154,9 @@ section_header "3. TIMEZONE & NTP CONFIGURATION"
 # Chrony is preferred over ntpd because it's faster at correcting drift,
 # handles intermittent connectivity better, and uses less memory.
 
-if [ -d /run/systemd/system ]; then
-    timedatectl set-timezone "$TIMEZONE"
-    systemctl enable chrony
-    systemctl start chrony
-fi
+timedatectl set-timezone "$TIMEZONE"
+systemctl enable chrony
+systemctl start chrony
 
 echo "Timezone set to $TIMEZONE. Chrony NTP enabled."
 
@@ -327,38 +325,34 @@ section_header "6. HARDENING SSH"
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
-if [ -f "$SSHD_CONFIG" ]; then
-    # Back up the original config so you can diff or restore if needed.
-    cp "$SSHD_CONFIG" "${SSHD_CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
+# Back up the original config so you can diff or restore if needed.
+cp "$SSHD_CONFIG" "${SSHD_CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
 
-    # We use sed to find and replace (or uncomment) each directive.
-    # The regex ^#\? matches lines that are either commented out or active.
-    sed -i "s/^#\?Port .*/Port $SSH_PORT/" "$SSHD_CONFIG"
-    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
-    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
-    sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$SSHD_CONFIG"
-    sed -i 's/^#\?X11Forwarding.*/X11Forwarding no/' "$SSHD_CONFIG"
-    sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' "$SSHD_CONFIG"
-    sed -i 's/^#\?AllowAgentForwarding.*/AllowAgentForwarding no/' "$SSHD_CONFIG"
+# We use sed to find and replace (or uncomment) each directive.
+# The regex ^#\? matches lines that are either commented out or active.
+sed -i "s/^#\?Port .*/Port $SSH_PORT/" "$SSHD_CONFIG"
+sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
+sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
+sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$SSHD_CONFIG"
+sed -i 's/^#\?X11Forwarding.*/X11Forwarding no/' "$SSHD_CONFIG"
+sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' "$SSHD_CONFIG"
+sed -i 's/^#\?AllowAgentForwarding.*/AllowAgentForwarding no/' "$SSHD_CONFIG"
 
-    # AllowUsers might not exist in the default config, so we append it.
-    # First remove any existing AllowUsers line, then add ours at the end.
-    sed -i '/^AllowUsers/d' "$SSHD_CONFIG"
-    echo "AllowUsers $NEW_USER" >> "$SSHD_CONFIG"
+# AllowUsers might not exist in the default config, so we append it.
+# First remove any existing AllowUsers line, then add ours at the end.
+sed -i '/^AllowUsers/d' "$SSHD_CONFIG"
+echo "AllowUsers $NEW_USER" >> "$SSHD_CONFIG"
 
-    # Validate the config before restarting. A syntax error here = you get
-    # locked out on next disconnect. sshd -t does a dry-run parse.
-    if sshd -t; then
-        systemctl restart sshd
-        echo "SSH hardened and restarted on port $SSH_PORT."
-    else
-        echo "ERROR: sshd config validation failed! Restoring backup." >&2
-        cp "${SSHD_CONFIG}.bak."* "$SSHD_CONFIG" 2>/dev/null
-        systemctl restart sshd
-        exit 1
-    fi
+# Validate the config before restarting. A syntax error here = you get
+# locked out on next disconnect. sshd -t does a dry-run parse.
+if sshd -t; then
+    systemctl restart sshd
+    echo "SSH hardened and restarted on port $SSH_PORT."
 else
-    echo "SSHD config not found, skipping SSH hardening."
+    echo "ERROR: sshd config validation failed! Restoring backup." >&2
+    cp "${SSHD_CONFIG}.bak."* "$SSHD_CONFIG" 2>/dev/null
+    systemctl restart sshd
+    exit 1
 fi
 
 # =============================================================================
@@ -377,27 +371,23 @@ section_header "7. CONFIGURING FIREWALL (UFW)"
 # "default allow outgoing" lets the server make outbound connections (apt updates,
 # DNS lookups, API calls, etc.).
 
-if command -v ufw >/dev/null 2>&1; then
-    ufw default deny incoming
-    ufw default allow outgoing
+ufw default deny incoming
+ufw default allow outgoing
 
-    # Allow SSH — CRITICAL: if you forget this, UFW locks you out the moment it
-    # enables. We use the variable in case you changed the port above.
-    ufw allow "$SSH_PORT/tcp" comment "SSH"
+# Allow SSH — CRITICAL: if you forget this, UFW locks you out the moment it
+# enables. We use the variable in case you changed the port above.
+ufw allow "$SSH_PORT/tcp" comment "SSH"
 
-    # Allow HTTP (needed for Let's Encrypt ACME challenges during cert issuance)
-    ufw allow 80/tcp comment "HTTP"
+# Allow HTTP (needed for Let's Encrypt ACME challenges during cert issuance)
+ufw allow 80/tcp comment "HTTP"
 
-    # Allow HTTPS (your actual web traffic)
-    ufw allow 443/tcp comment "HTTPS"
+# Allow HTTPS (your actual web traffic)
+ufw allow 443/tcp comment "HTTPS"
 
-    # --force skips the "are you sure?" interactive prompt.
-    ufw --force enable
+# --force skips the "are you sure?" interactive prompt.
+ufw --force enable
 
-    echo "UFW enabled. Allowed ports: $SSH_PORT (SSH), 80 (HTTP), 443 (HTTPS)."
-else
-    echo "UFW not found, skipping firewall configuration."
-fi
+echo "UFW enabled. Allowed ports: $SSH_PORT (SSH), 80 (HTTP), 443 (HTTPS)."
 
 # =============================================================================
 # 8. FAIL2BAN (BRUTE-FORCE PROTECTION)
@@ -456,10 +446,8 @@ logpath  = /var/log/nginx/access.log
 maxretry = 2
 EOF
 
-if [ -d /run/systemd/system ]; then
-    systemctl enable fail2ban
-    systemctl restart fail2ban
-fi
+systemctl enable fail2ban
+systemctl restart fail2ban
 
 echo "Fail2ban configured and running."
 
@@ -570,10 +558,8 @@ Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 EOF
 
-if [ -d /run/systemd/system ]; then
-    systemctl enable unattended-upgrades
-    systemctl restart unattended-upgrades
-fi
+systemctl enable unattended-upgrades
+systemctl restart unattended-upgrades
 
 echo "Automatic security updates configured."
 
