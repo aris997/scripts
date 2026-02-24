@@ -154,10 +154,8 @@ section_header "3. TIMEZONE & NTP CONFIGURATION"
 # Chrony is preferred over ntpd because it's faster at correcting drift,
 # handles intermittent connectivity better, and uses less memory.
 
-if command -v timedatectl >/dev/null 2>&1; then
+if [ -d /run/systemd/system ]; then
     timedatectl set-timezone "$TIMEZONE"
-fi
-if command -v systemctl >/dev/null 2>&1; then
     systemctl enable chrony
     systemctl start chrony
 fi
@@ -458,7 +456,7 @@ logpath  = /var/log/nginx/access.log
 maxretry = 2
 EOF
 
-if command -v systemctl >/dev/null 2>&1; then
+if [ -d /run/systemd/system ]; then
     systemctl enable fail2ban
     systemctl restart fail2ban
 fi
@@ -572,7 +570,7 @@ Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 EOF
 
-if command -v systemctl >/dev/null 2>&1; then
+if [ -d /run/systemd/system ]; then
     systemctl enable unattended-upgrades
     systemctl restart unattended-upgrades
 fi
