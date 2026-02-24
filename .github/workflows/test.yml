@@ -17,13 +17,24 @@ jobs:
           sudo apt-get install -y shellcheck
           shellcheck *.sh
 
-      - name: Build Debian 13 test image
+      - name: Build debian-docker test image
         run: |
           docker build \
             --build-arg SKIP_SNAP=1 \
             --build-arg SKIP_DOCKER=1 \
             --build-arg NEW_USER=agent-test \
-            -t ignition-scripts:test .
+            -t ignition-scripts:docker-test .
 
-      - name: Verify user creation
-        run: docker run --rm ignition-scripts:test getent passwd agent-test
+      - name: Verify user creation (debian-docker)
+        run: docker run --rm ignition-scripts:docker-test getent passwd agent-test
+
+      - name: Build debian-nginx test image
+        run: |
+          docker build \
+            -f Dockerfile.nginx.ci \
+            --build-arg SKIP_SNAP=1 \
+            --build-arg NEW_USER=agent-test \
+            -t ignition-scripts:nginx-test .
+
+      - name: Verify user creation (debian-nginx)
+        run: docker run --rm ignition-scripts:nginx-test getent passwd agent-test
